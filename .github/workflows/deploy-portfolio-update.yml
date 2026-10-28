@@ -1,0 +1,77 @@
+name: Arrange and publish portfolio update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "portfolio-update.zip"
+      - ".github/workflows/deploy-portfolio-update.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: portfolio-update
+  cancel-in-progress: false
+
+jobs:
+  arrange:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract and arrange the uploaded portfolio files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f portfolio-update.zip
+          mkdir -p /tmp/portfolio-update
+          unzip -o portfolio-update.zip -d /tmp/portfolio-update
+          test -f /tmp/portfolio-update/index.html
+          test -d /tmp/portfolio-update/assets/certs
+          mkdir -p assets/certs
+          cp /tmp/portfolio-update/index.html ./index.html
+          cp -a /tmp/portfolio-update/assets/certs/. ./assets/certs/
+          echo "Certificate files copied:"
+          find assets/certs -maxdepth 1 -type f -printf '%f\n' | sort
+          echo "Checking referenced local asset paths..."
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, sys
+          html = Path("index.html").read_text(encoding="utf-8")
+          refs = set(re.findall(r'''(?:src|href)=["']([^"']+)["']''', html, re.I))
+          missing = []
+          for ref in sorted(refs):
+              if ref.startswith(("http://", "https://", "mailto:", "tel:", "#", "data:", "javascript:")):
+                  continue
+              path = ref.split("?", 1)[0].split("#", 1)[0]
+              if not path:
+                  continue
+              target = Path(path.lstrip("/"))
+              if not target.exists():
+                  missing.append(ref)
+          if missing:
+              print("Potential missing local references:")
+              print("\n".join(missing))
+              sys.exit(1)
+          print("Local src/href references checked.")
+          PY
+
+      - name: Commit arranged website files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html assets/certs
+          if git diff --cached --quiet; then
+            echo "No website changes to commit."
+          else
+            git commit -m "Publish updated portfolio and certificate gallery"
+            git push origin HEAD:main
+          fi
