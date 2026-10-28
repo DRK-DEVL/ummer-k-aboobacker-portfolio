@@ -19,3 +19,6 @@ The public CV is a short, purpose-built extract. Original CV supporting document
 ## Deployment
 
 GitHub Pages can publish directly from the `main` branch root. No build command or dependencies are required.
+
+
+The uploaded `portfolio-update.zip` is unpacked into the site by the GitHub Actions workflow in `.github/workflows/deploy-portfolio-update.yml`.
