@@ -6,6 +6,7 @@ on:
     paths:
       - "portfolio-update.zip"
       - ".github/workflows/deploy-portfolio-update.yml"
+      - "README.md"
   workflow_dispatch:
 
 permissions:
